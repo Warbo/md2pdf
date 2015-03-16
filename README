@@ -1,0 +1,5 @@
+# Markdown to PDF converter #
+
+Uses Pandoc to convert all Markdown files in a directory into PDFs. Uses inotifytools to watch for file changes.
+
+If Panpipe and Pandoc are available, those are used as Pandoc filters.
