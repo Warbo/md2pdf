@@ -1,30 +1,33 @@
-#!/bin/sh
+#! /usr/bin/env nix-shell
+#! nix-shell -i bash -p bash pandoc panpipe panhandle haskellPackages.pandoc-citeproc
 
-if [ -n $1 ]
-then
-  TYPE="$1"
-else
-  TYPE="pp"
-fi
+# Pass raw pandoc arguments in $ARGS
 
-function renderPP {
-  pandoc --bibliography=/home/chris/Documents/ArchivedPapers/Bibtex.bib \
-         --filter panpipe --filter panhandle -o "$1" "$2"
-}
-
-function renderB {
-  pandoc -t beamer -o "$1" "$2"
-}
+case $OPTIONS in
+    beamer) TYPE="beamer"
+            ;;
+    pp) FILTERS="panpipe panhandle"
+        BIB="/home/chris/Documents/ArchivedPapers/Bibtex.bib"
+        ;;
+esac
 
 function render {
   # Render a markdown file to PDF
   pdf=$(pdfOf "$1")
-  if [ "$TYPE" == "beamer" ]
+  NEWARGS=""
+  [ ! -z "$TYPE" ] && NEWARGS="-t ${TYPE}"
+  [ ! -z "$BIB"  ] && NEWARGS="${NEWARGS} --bibliography=${BIB}"
+  if [ ! -z "$FILTERS" ]
   then
-    renderB  "$pdf" "$1"
-  else
-    renderPP "$pdf" "$1"
+      for filter in $FILTERS
+      do
+          NEWARGS="${NEWARGS} --filter=${filter}"
+      done
   fi
+  NEWARGS="${NEWARGS} -o ${pdf} $1"
+  echo "RUNNING: pandoc $ARGS $NEWARGS"
+  ALLARGS=( $ARGS $NEWARGS )
+  eval pandoc "${ALLARGS[@]}"
 }
 
 function needsUpdate {
@@ -41,9 +44,8 @@ function needsUpdate {
   if [ "$ptime" -lt "$mtime" ]
   then
     return 0
-  else
-    return 1
   fi
+  return 1
 }
 
 function mtime {
@@ -54,27 +56,29 @@ function pdfOf {
   # Get the PDF filename to use when rendering the given Markdown file
   dir=$(dirname "$1")
   base=$(basename "$1" .md)
-  echo "${dir}/${base}.pdf"
+  if [ -z "$EXTENSION" ]
+  then
+      echo "${dir}/${base}.pdf"
+  else
+      echo "${dir}/${base}.${EXTENSION}"
+  fi
+}
+
+function keepPat {
+  if [ -z "$PATTERN" ]
+  then
+      cat
+  else
+      grep "$PATTERN"
+  fi
 }
 
 function renderAll {
   # Render all markdown files which need updating
-  for md in $(find . -name "*.md" | grep -v "\.#")
+  for md in $(find . -name "*.md" | grep -v "\.#" | keepPat)
   do
-    if needsUpdate "$md"
-    then
-      render "$md"
-    fi
+      needsUpdate "$md" && render "$md"
   done
 }
 
-function watch {
-  # Render markdown files when this directory is written to
-  while true
-  do
-      inotifywait -q -r -e close_write . && renderAll
-  done
-}
-
-# Start watching
-watch
+renderAll

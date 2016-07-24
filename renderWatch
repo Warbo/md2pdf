@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# Run once to begin with
+"$1"
+
+# Run the command $1 when this directory is written to
+while inotifywait -q -e close_write .
+do
+    "$1"
+done
